@@ -596,22 +596,13 @@ def showScreen():
     render_player_car()
 
     # Display game info
+    # Display game info
     draw_text(10, 770, "Fast & Furious Car Chase")
     draw_text(10, 740, f"Health: {car['health']}")
     draw_text(10, 710, f"Coins: {coins_collected}")
     draw_text(10, 680, f"Score: {score}")
-    draw_text(10, 650, f"Speed: {car['speed']:.1f}")
-    draw_text(10, 620, f"Lane: {car['lane'] + 1}")
 
-    # Camera info
-    camera_names = ["Third Person", "First Person", "Overview"]
-    draw_text(10, 590, f"Camera: {camera_names[camera_mode]}")
-
-    # Controls
-    draw_text(10, 580, "A/D: Change Lane, UP/DOWN: Speed Control")
-    draw_text(10, 550, "C: Cheat, J: Flying, M: Magnet, F: 1st Person, T: 3rd Person")
-
-       # Special modes
+    # Special modes
     if cheat_mode:
         draw_text(10, 500, f"CHEAT MODE: {cheat_timer:.1f}s")
     if car['flying']:
