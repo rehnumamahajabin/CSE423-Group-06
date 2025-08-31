@@ -24,6 +24,20 @@ camera_mode = 0
 
 # Lane positions (3 lanes) (sakura)
 LANE_POSITIONS = [-5.0, 0.0, 5.0]  # Left, Middle, Right
+ROAD_LENGTH = 100.0
+
+
+# Game objects rodo
+obstacles = []
+items = []
+powerups = []
+enemies = []
+
+
+# Game stats rodo
+score = 0
+coins_collected = 0  # Track coins separately
+game_over = False
 
 #Rehnuma
 #Special abilities
@@ -32,10 +46,25 @@ cheat_timer = 0.0
 magnet_mode = False
 magnet_timer = 0.0
 
+
+# Input state
+keys_pressed = set()
+special_keys_pressed = set()
+
+# Timing variables for spawning rodo
+last_obstacle_spawn = 0.0
+last_enemy_spawn = 0.0
+obstacle_spawn_interval = 10.0  # 10 seconds
+enemy_spawn_interval = 20.0  # 20 seconds
+game_start_time= 0.0  # Track when game started
+first_enemy_delay = 25.0  # First enemy after 25 seconds
+
+
+
 def reset_game():
     """Reset game to initial state"""
     global score, coins_collected, game_over, cheat_mode, cheat_timer, magnet_mode, magnet_timer
-    global
+    global last_obstacle_spawn, last_enemy_spawn, game_start_time
 
     car['x'] = 0.0
     car['y'] = 0.5
@@ -47,14 +76,119 @@ def reset_game():
     car['flying'] = False
     car['fly_timer'] = 0.0
 
+    #rodo
+    score = 0
+    coins_collected = 0
+    game_over = False
+
     #rehnuma
     cheat_mode = False
     cheat_timer = 0.0
     magnet_mode = False
     magnet_timer = 0.0
 
+    # Reset spawn timers rodo
+    last_obstacle_spawn = time.time()
+    last_enemy_spawn = time.time()
+
     init_game_objects()
     print("Game reset! Ready to race!")
+
+def init_game_objects():
+   """Initialize obstacles, items, powerups, and enemies for 3-lane road"""
+   global obstacles, items, powerups, enemies
+
+
+   # Start with fewer initial obstacles - they'll spawn over time rodo
+   obstacles.clear()
+   for i in range(3):  # Start with only 3 obstacles
+       lane = random.randint(0, 2)
+       z_pos = random.uniform(10, 30)
+       x_pos = LANE_POSITIONS[lane]
+       obstacle_type = random.choice(["barrier", "cone", "rock"])
+       obstacles.append([x_pos, 1.0, z_pos, obstacle_type])
+
+
+   # Generate coins only across lanes rodo
+   items.clear()
+   for i in range(30):
+       lane = random.randint(0, 2)
+       z_pos = random.uniform(5, 60)
+       x_pos = LANE_POSITIONS[lane] + random.uniform(-1, 1)
+       item_type = "coin"  # Only coins
+       rotation = 0.0
+       collected = False
+       items.append([x_pos, 2.0, z_pos, item_type, rotation, collected])
+
+
+   # No power-ups - remove them completely
+   powerups.clear()
+
+
+   # Start with fewer enemy cars - they'll spawn over time rodo
+   enemies.clear()
+   for i in range(1):  # Start with only 1 enemy
+       lane = random.randint(0, 2)
+       z_pos = random.uniform(15, 30)
+       x_pos = LANE_POSITIONS[lane]
+       vel_x = 0.0
+       vel_z = -random.uniform(15, 25)  # Negative for opposite direction
+       rotation = 180.0  # Face opposite direction
+       last_hit = 0.0
+       enemies.append([x_pos, 0.5, z_pos, vel_x, vel_z, rotation, last_hit])
+
+
+
+#rodo
+def spawn_obstacle():
+   """Spawn a new obstacle in a random lane"""
+   global obstacles
+   lane = random.randint(0, 2)
+   z_pos = car['z'] + random.uniform(20, 40)  # Spawn ahead of player
+   x_pos = LANE_POSITIONS[lane]
+   obstacle_type = random.choice(["barrier", "cone", "rock"])
+   obstacles.append([x_pos, 1.0, z_pos, obstacle_type])
+   print(f"Spawned {obstacle_type} in lane {lane + 1} at position {x_pos}")
+
+
+
+#rodo
+def spawn_enemy():
+   """Spawn a new enemy car in a random lane from far ahead"""
+   global enemies
+   lane = random.randint(0, 2)
+   z_pos = car['z'] + random.uniform(50, 80)  # Spawn far ahead of player
+   x_pos = LANE_POSITIONS[lane]
+   vel_x = 0.0
+   vel_z = -random.uniform(15, 25)  # Negative velocity for opposite direction
+   rotation = 180.0  # Face opposite direction
+   last_hit = 0.0
+   enemies.append([x_pos, 0.5, z_pos, vel_x, vel_z, rotation, last_hit])
+
+
+
+#rodo
+def update_spawning():
+   """Update obstacle and enemy spawning based on time"""
+   global last_obstacle_spawn, last_enemy_spawn
+
+
+   current_time = time.time()
+
+
+   # Spawn obstacle every 10 seconds
+   if current_time - last_obstacle_spawn >= obstacle_spawn_interval:
+       spawn_obstacle()
+       last_obstacle_spawn = current_time
+
+
+   # Spawn enemy every 20 seconds (but not in first 25 seconds)
+   time_since_start = current_time - game_start_time
+   if time_since_start >= first_enemy_delay and current_time - last_enemy_spawn >= enemy_spawn_interval:
+       spawn_enemy()
+       last_enemy_spawn = current_time
+
+
 
 def setupCamera():
     """Set up camera with multiple modes"""
@@ -112,6 +246,127 @@ def draw_text(x, y, text, font=GLUT_BITMAP_HELVETICA_18):
 def render_cube():
     """Render a cube"""
     glutSolidCube(1.0)
+
+def render_3_lane_road():
+   """Render 3-lane road with visible lane markers"""
+   # Road base (light gray) - infinite road based on car position
+   glColor3f(0.7, 0.7, 0.7)
+   glBegin(GL_QUADS)
+   road_width = 15.0  # Total width for 3 lanes
+   # Render road segments around the player's position
+   start_z = int(car['z']) - 30
+   end_z = int(car['z']) + 100
+   for z in range(start_z, end_z, 2):
+       glVertex3f(-road_width / 2, 0.0, z)
+       glVertex3f(road_width / 2, 0.0, z)
+       glVertex3f(road_width / 2, 0.0, z + 2)
+       glVertex3f(-road_width / 2, 0.0, z + 2)
+   glEnd()
+
+
+   # Lane divider lines (white)
+   glColor3f(1.0, 1.0, 1.0)
+   glLineWidth(3.0)
+   glBegin(GL_LINES)
+
+
+   # Left lane divider
+   left_divider = LANE_POSITIONS[0] + 2.5
+   for z in range(start_z, end_z, 4):
+       glVertex3f(left_divider, 0.1, z)
+       glVertex3f(left_divider, 0.1, z + 2)
+
+
+   # Right lane divider
+   right_divider = LANE_POSITIONS[1] + 2.5
+   for z in range(start_z, end_z, 4):
+       glVertex3f(right_divider, 0.1, z)
+       glVertex3f(right_divider, 0.1, z + 2)
+
+
+   glEnd()
+
+
+   # Road barriers (red walls on sides)
+   glColor3f(0.8, 0.0, 0.0)
+   glBegin(GL_QUADS)
+   barrier_height = 2.0
+   for z in range(start_z, end_z, 2):
+       # Left barrier
+       glVertex3f(-road_width / 2 - 1, 0, z)
+       glVertex3f(-road_width / 2 - 1, barrier_height, z)
+       glVertex3f(-road_width / 2 - 1, barrier_height, z + 2)
+       glVertex3f(-road_width / 2 - 1, 0, z + 2)
+
+
+       # Right barrier
+       glVertex3f(road_width / 2 + 1, 0, z)
+       glVertex3f(road_width / 2 + 1, barrier_height, z)
+       glVertex3f(road_width / 2 + 1, barrier_height, z + 2)
+       glVertex3f(road_width / 2 + 1, 0, z + 2)
+   glEnd()
+
+
+
+
+def render_obstacles():
+   """Render obstacles in lanes"""
+   for obstacle in obstacles:
+       glPushMatrix()
+       glTranslatef(obstacle[0], obstacle[1], obstacle[2])
+
+
+       if obstacle[3] == "barrier":
+           glColor3f(1.0, 0.5, 0.0)  # Orange
+       elif obstacle[3] == "cone":
+           glColor3f(1.0, 0.3, 0.0)  # Orange-red
+       else:  # rock
+           glColor3f(0.4, 0.4, 0.4)  # Gray
+
+
+       # Use spheres for obstacles instead of cubes
+       glutSolidSphere(1.0, 12, 12)
+       glPopMatrix()
+
+
+
+
+def render_items():
+   """Render collectible items"""
+   for item in items:
+       if not item[5]:  # If not collected
+           glPushMatrix()
+           glTranslatef(item[0], item[1], item[2])
+           glRotatef(item[4], 0, 1, 0)
+
+
+           # Only coins now
+           glColor3f(1.0, 1.0, 0.0)  # Gold
+           glutSolidSphere(0.3, 8, 8)  # Circular coin
+           glPopMatrix()
+
+
+           # Update rotation
+           item[4] += 2.0
+
+
+
+
+def render_enemies():
+   """Render enemy cars"""
+   for enemy in enemies:
+       glPushMatrix()
+       glTranslatef(enemy[0], enemy[1], enemy[2])
+       glRotatef(enemy[5], 0, 1, 0)
+
+
+       # Enemy car body (red)
+       glColor3f(0.8, 0.0, 0.0)
+       glScalef(2.0, 1.0, 4.0)
+       render_cube()
+       glPopMatrix()
+
+
 
 def render_player_car():     #Sakura
     """Render the player car with 4 wheels"""
@@ -222,6 +477,30 @@ def update_player_car():
     else:
         car['y'] = 0.5
 
+ # Infinite road - move objects back when player advances
+    if car['z'] > 50:
+       # Move all objects back relative to player
+       for obstacle in obstacles:
+           if obstacle[2] < car['z'] - 30:
+               obstacle[2] += 80
+       for item in items:
+           if item[2] < car['z'] - 30:
+               item[2] += 80
+               item[5] = False  # Make uncollected again
+       # No powerups to move
+def update_enemies():
+   """Update enemy AI cars moving in opposite direction"""
+   dt = 0.016
+   for enemy in enemies[:]:
+       # Move in opposite direction (towards player)
+       enemy[2] += enemy[4] * dt  # z position (vel_z is negative)
+
+
+       # Remove enemies that passed behind player
+       if enemy[2] < car['z'] - 50:
+           enemies.remove(enemy)
+
+
 
 def check_collisions():
     """Handle all collision detection"""
@@ -232,21 +511,22 @@ def check_collisions():
 
     player_size = 2.0
 
-
-    # Check enemy collisions (only if not in cheat mode and not flying)  (SAKURA)
+    # Check obstacle collisions (only if not in cheat mode and not flying)
     if not cheat_mode and not car['flying']:
-        current_time = time.time()
-        for enemy in enemies:
-            if abs(enemy[2] - car['z']) < 10:  # Only check nearby enemies
-                dx = car['x'] - enemy[0]
-                dz = car['z'] - enemy[2]
+        for obstacle in obstacles:
+            if abs(obstacle[2] - car['z']) < 10:  # Only check nearby obstacles
+                dx = car['x'] - obstacle[0]
+                dz = car['z'] - obstacle[2]
                 distance = math.sqrt(dx * dx + dz * dz)
-                if distance < 3.0:
-                    if current_time - enemy[6] > 1.0:  # Limit collision frequency
-                        enemy[6] = current_time
+                if distance < player_size:
+                    obstacles.remove(obstacle)
+                    car['health'] -= 1
+                    print(f"Obstacle collision! Health: {car['health']}")
+                    if car['health'] <= 0:
                         game_over = True
-                        print("Enemy collision! GAME OVER")
-                        
+                        print("GAME OVER!")
+
+
     # Check coin collection in Magnet Mode (REHNUMA)
     if magnet_mode:
         # In magnet mode, collect coins across all lanes at same z position as car
@@ -258,6 +538,37 @@ def check_collisions():
                     score += 10
                     coins_collected += 1
                     print(f"Magnet collected coin from lane! Coins: {coins_collected}")
+
+    else:
+        # Normal collection range
+        collection_range = 2.0
+        for item in items:
+            if not item[5]:  # If not collected
+                dx = car['x'] - item[0]
+                dz = car['z'] - item[2]
+                distance = math.sqrt(dx * dx + dz * dz)
+                if distance < collection_range:
+                    item[5] = True  # Mark as collected
+                    # Only coins now
+                    score += 10
+                    coins_collected += 1
+                    print(f"Item collected! Coins: {coins_collected}, Score: {score}")
+
+    # No power-ups anymore
+
+    # Check enemy collisions (only if not in cheat mode and not flying)
+    if not cheat_mode and not car['flying']:
+        current_time = time.time()
+        for enemy in enemies:
+            if abs(enemy[2] - car['z']) < 10:  # Only check nearby enemies
+                dx = car['x'] - enemy[0]
+                dz = car['z'] - enemy[2]
+                distance = math.sqrt(dx * dx + dz * dz)
+                if distance < 3.0:
+                    if current_time - enemy[6] > 1.0:  # Limit collision frequency
+                        enemy[6] = current_time
+                        game_over = True
+                        print("Enemy collision! GAME OVER!")
 
 
 def showScreen():
@@ -276,6 +587,13 @@ def showScreen():
         update_spawning()  # Add timed spawning
         check_collisions()
 
+    # Render all objects rodo
+    render_3_lane_road()
+    render_obstacles()
+    render_items()
+    # No powerups to render rodo
+    render_enemies()
+    render_player_car()
 
     # Display game info
     draw_text(10, 770, "Fast & Furious Car Chase")
