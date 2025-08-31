@@ -634,7 +634,7 @@ def idle():
 
 def keyboard(key, x, y):
     """Handle key press"""
-    global camera_mode, 
+    global camera_mode, cheat_mode, cheat_timer, magnet_mode, magnet_timer, score, coins_collected
   
     keys_pressed.add(ord(key))
 
