@@ -25,9 +25,16 @@ camera_mode = 0
 # Lane positions (3 lanes) (sakura)
 LANE_POSITIONS = [-5.0, 0.0, 5.0]  # Left, Middle, Right
 
+#Rehnuma
+#Special abilities
+cheat_mode = False
+cheat_timer = 0.0
+magnet_mode = False
+magnet_timer = 0.0
+
 def reset_game():
     """Reset game to initial state"""
-    global 
+    global score, coins_collected, game_over, cheat_mode, cheat_timer, magnet_mode, magnet_timer
     global
 
     car['x'] = 0.0
@@ -40,7 +47,14 @@ def reset_game():
     car['flying'] = False
     car['fly_timer'] = 0.0
 
+    #rehnuma
+    cheat_mode = False
+    cheat_timer = 0.0
+    magnet_mode = False
+    magnet_timer = 0.0
 
+    init_game_objects()
+    print("Game reset! Ready to race!")
 
 def setupCamera():
     """Set up camera with multiple modes"""
@@ -99,14 +113,13 @@ def render_cube():
     """Render a cube"""
     glutSolidCube(1.0)
 
-
 def render_player_car():     #Sakura
     """Render the player car with 4 wheels"""
     glPushMatrix()
     glTranslatef(car['x'], car['y'], car['z'])
     glRotatef(car['rotation'], 0, 1, 0)
 
-    # Player car body color (blue, or different if special mode)
+    # Car body color (Rehnuma)
     if cheat_mode:
         glColor3f(1.0, 1.0, 0.0)  # Yellow when invincible
     elif magnet_mode:
@@ -148,7 +161,27 @@ def render_player_car():     #Sakura
     glPopMatrix()
 
 def update_player_car():
+    global cheat_mode, cheat_timer, magnet_mode, magnet_timer
+    dt = 0.016
+    # Special ability timers (Rehnuma)
+    if cheat_mode:
+        cheat_timer -= dt
+        if cheat_timer <= 0:
+            cheat_mode = False
+            print("Cheat mode ended")
 
+    if magnet_mode:
+        magnet_timer -= dt
+        if magnet_timer <= 0:
+            magnet_mode = False
+            print("Magnet mode ended")
+
+    if car['flying']:
+        car['fly_timer'] -= dt
+        if car['fly_timer'] <= 0:
+            car['flying'] = False
+            car['y'] = 0.5
+            print("Flying mode ended")
 
     # Speed control (UP/DOWN arrows) - fine control  (SAKURA)
     if GLUT_KEY_UP in special_keys_pressed:
@@ -183,6 +216,12 @@ def update_player_car():
     target_x = LANE_POSITIONS[car['lane']]
     car['x'] += (target_x - car['x']) * 5.0 * dt  # Smooth lane transition
 
+    # Update flying height (Rehnuma)
+    if car['flying']:
+        car['y'] = 8.0  # Much higher for visible flying
+    else:
+        car['y'] = 0.5
+
 
 def check_collisions():
     """Handle all collision detection"""
@@ -206,7 +245,19 @@ def check_collisions():
                     if current_time - enemy[6] > 1.0:  # Limit collision frequency
                         enemy[6] = current_time
                         game_over = True
-                        print("Enemy collision! GAME OVER!")
+                        print("Enemy collision! GAME OVER")
+                        
+    # Check coin collection in Magnet Mode (REHNUMA)
+    if magnet_mode:
+        # In magnet mode, collect coins across all lanes at same z position as car
+        for item in items:
+            if not item[5] and item[3] == "coin":  # If not collected and is a coin
+                # Check if coin is at similar z position (same x-axis as car)
+                if abs(item[2] - car['z']) < 3.0:  # Within 3 units of car's z position
+                    item[5] = True  # Mark as collected
+                    score += 10
+                    coins_collected += 1
+                    print(f"Magnet collected coin from lane! Coins: {coins_collected}")
 
 
 def showScreen():
@@ -242,6 +293,14 @@ def showScreen():
     draw_text(10, 580, "A/D: Change Lane, UP/DOWN: Speed Control")
     draw_text(10, 550, "C: Cheat, J: Flying, M: Magnet, F: 1st Person, T: 3rd Person")
 
+       # Special modes
+    if cheat_mode:
+        draw_text(10, 500, f"CHEAT MODE: {cheat_timer:.1f}s")
+    if car['flying']:
+        draw_text(10, 470, f"FLYING MODE: {car['fly_timer']:.1f}s")
+    if magnet_mode:
+        draw_text(10, 440, f"MAGNET MODE: {magnet_timer:.1f}s") 
+
     if game_over:
         draw_text(350, 450, "GAME OVER!")
         draw_text(300, 400, f"Final Score: {coins_collected} coins")
@@ -274,6 +333,23 @@ def keyboard(key, x, y):
     elif key == b't' or key == b'T':
         camera_mode = 0
         print("Third-person camera")
+        
+    # Cheat mode (20 seconds invincibility) (Rehnuma)
+    elif key == b'c' or key == b'C':
+        cheat_mode = True
+        cheat_timer = 20.0
+        print("Cheat mode activated! 20 seconds of invincibility")
+    # Flying mode (20 seconds above road) (Rehnuma)
+    elif key == b'j' or key == b'J':
+        car['flying'] = True
+        car['fly_timer'] = 20.0
+        print("Flying mode activated! 20 seconds in the air")
+
+    # Magnet mode - collect all coins for 20 seconds (Rehnuma)
+    elif key == b'm' or key == b'M':
+        magnet_mode = True
+        magnet_timer = 20.0  # 20 seconds of enhanced collection
+        print("Magnet mode activated! 20 seconds of enhanced coin collection")
 
 def keyboardUp(key, x, y):
     """Handle key release"""
@@ -292,21 +368,29 @@ def specialKeyUp(key, x, y):
         special_keys_pressed.remove(key)
 
 
-ef main():
+def main():
     """Main function"""
-    print("Starting Fast & Furious Car Chase Game!")
+    print("Fast & Furious Car Chase Game!")
     print("Controls:")
     print("A - Move to Left Lane")
     print("D - Move to Right Lane")
     print("UP Arrow - Increase Speed")
     print("DOWN Arrow - Decrease Speed")
-
+    print("C - Cheat Mode (20s invincibility)")
+    print("J - Flying Mode (20s above road)")
+    print("M - Magnet Mode (collect all coins)")
     print("F - First Person Camera")
     print("T - Third Person Camera")
     print("R - Restart Game")
 
+    # Initialize game objects
+    init_game_objects()
 
-    # Initialize GLUT
+    # Initialize spawn timers
+    global last_obstacle_spawn, last_enemy_spawn
+    last_obstacle_spawn = time.time()
+    last_enemy_spawn = time.time()
+
     glutInit()
     glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH)
     glutInitWindowSize(1000, 800)
@@ -315,7 +399,7 @@ ef main():
     # Enable depth testing and lighting
     glEnable(GL_DEPTH_TEST)
 
-    # Set clear color (sky blue)
+    # Set clear color
     glClearColor(0.5, 0.8, 1.0, 1.0)
 
     # Set callback functions
